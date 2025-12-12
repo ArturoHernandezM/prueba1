@@ -1,0 +1,482 @@
+<!DOCTYPE html> 
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Simulación de Examen AMG</title>
+
+<style>
+:root{
+ --bg:#072146;
+ --card:#ffffff;
+ --accent:#e6eefc;
+ --ok:#16a34a;
+ --err:#ef4444;
+ --primary:#2563eb;
+}
+*{box-sizing:border-box}
+body{
+ margin:0;
+ padding:18px;
+ font-family:Inter, Poppins, Arial, sans-serif;
+ background: var(--bg);
+ min-height:100vh;
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ color:var(--accent);
+}
+.quiz-container{
+ width:100%;
+ max-width:980px;
+ background:var(--card);
+ border-radius:14px;
+ padding:22px;
+ box-shadow:0 12px 40px rgba(0,0,0,0.35);
+ color:#0f172a;
+}
+h1{
+ margin:0 0 22px;
+ text-align:center;
+ color:#0f172a;
+ font-size:2.4rem;
+}
+.intro {text-align:center; margin:18px 0}
+.question {font-size:1.05rem; margin:10px 0 14px; color:#0f172a}
+.pretext {font-size:1rem; color:#374151; margin-bottom:8px;}
+.progress {text-align:right; font-size:0.9rem; color:#555; margin-bottom:8px;}
+.main-audio {margin-bottom:4px}
+.answers {display:flex; flex-direction:column; gap:10px;}
+.option-row { display:flex; gap:10px; align-items:center; margin-bottom:8px; position:relative; }
+.option-number { width:100px; text-align:right; font-weight:600; font-size:1rem; color:#0f172a; }
+@media(max-width:720px){
+ .option-number{width:80px;font-size:0.9rem;}
+}
+.play-wrap {
+ width:65px;
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ background:#c7e9ff;
+ border-radius:10px;
+ padding:6px;
+}
+.audio-btn{
+ width:46px;
+ height:46px;
+ border-radius:50%;
+ border:0;
+ background:linear-gradient(135deg,#3b82f6,#60a5fa);
+ color:white;
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ font-size:18px;
+ cursor:pointer;
+ box-shadow:0 8px 20px rgba(37,99,235,0.26);
+ transition: transform .14s, box-shadow .14s, opacity .14s;
+}
+.audio-btn:hover{transform:scale(1.06)}
+.audio-btn.playing{
+ background:linear-gradient(135deg,#10b981,#34d399);
+ box-shadow:0 10px 26px rgba(16,185,129,0.22)
+}
+.answer-btn {
+ flex:1;
+ max-width:180px;
+ text-align:center;
+ padding:10px 12px;
+ font-size:1.2rem;
+ border-radius:8px;
+ border:1px solid #fcd34d;
+ background:#ffe9cc;
+ cursor:pointer;
+ transition: background 0.12s, transform 0.12s;
+ position:relative;
+}
+.answer-btn:hover{background:#ffd8a8; transform:scale(1.03)}
+.answer-btn:disabled{opacity:.6; cursor:not-allowed}
+.answer-btn.correct{background:var(--ok); color:white}
+.answer-btn.wrong{background:var(--err); color:white}
+.icon {
+ position: absolute;
+ right: -45px;
+ top: 50%;
+ transform: translateY(-50%) scale(0);
+ font-size: 1.6rem;
+ opacity: 0;
+ transition: all 0.3s ease;
+}
+.answer-btn.correct .icon {
+ color: var(--ok);
+ transform: translateY(-50%) scale(1.1);
+ opacity: 1;
+}
+.answer-btn.wrong .icon {
+ color: var(--err);
+ transform: translateY(-50%) scale(1.1);
+ opacity: 1;
+}
+.controls {display:flex; justify-content:center; margin-top:16px; gap:12px;}
+.btn {
+ padding:10px 16px;
+ border-radius:10px;
+ border:0;
+ background:var(--primary);
+ color:white;
+ font-weight:600;
+ cursor:pointer
+}
+.btn.ghost { background:white; color:#0f172a; border:1px solid #e6eefc }
+.summary {text-align:center}
+
+/* === CAJA DONDE SE MUESTRA EL VIDEO O IMAGEN === */
+.quiz-image-box {
+ width: clamp(300px, 47vw, 630px);
+ aspect-ratio: 8 / 2.5;
+ background: #ffffff;
+ border-radius: 10px;
+ margin: 8px auto 16px;
+ display: flex;
+ justify-content: center;
+ align-items: center;
+ overflow: hidden;
+ padding: 0;
+}
+
+/* === NUEVO: VIDEO === */
+.quiz-video {
+ width: 100%;
+ height: 100%;
+ border: 0;
+ border-radius: 10px;
+}
+</style>
+</head>
+
+<body>
+<div class="quiz-container" role="main">
+ <div id="app"></div>
+ <button id="backButton" style="display:none; margin-top: 20px;">◀ Atrás</button>
+ <button id="nextButton" style="display:none; margin-top: 20px;">Siguiente ▶</button>
+</div>
+
+<script>
+
+/* ============================= CONFIG ============================= */
+const baseQuestions = [
+ {
+   pretext: "",
+   
+   /* === EJEMPLO COMPLETO PARA QUE APRENDAS === */
+   /* INSERTA AQUÍ SOLO EL ID DE YOUTUBE (embed) */
+   video: "https://www.youtube.com/embed/TJUbMbnXOlY",
+
+   question: "Selecciona la opción que coincide con la secuencia mostrada.",
+   answers: [
+     { text: "?", correct: true, audio: "op1a.mp3" },
+     { text: "?", correct: false, audio: "op1b.mp3" },
+     { text: "?", correct: false, audio: "op1c.mp3" }
+   ]
+ },
+
+ {
+   pretext: "",
+   /* PARA AGREGAR MÁS VIDEOS SOLO CAMBIA ESTE CAMPO */
+   /* video: "https://www.youtube.com/embed/IDAQUI",  */
+   video: "https://www.youtube.com/embed/TJUbMbnXOlY",
+   question: "Selecciona la opción que coincide con la secuencia mostrada.",
+   answers: [
+     { text: "?", correct: false, audio: "op2a.mp3" },
+     { text: "?", correct: true, audio: "op2b.mp3" },
+     { text: "?", correct: false, audio: "op2c.mp3" }
+   ]
+ },
+
+ {
+   pretext: "",
+   image: "p3.jpg",
+   question: "Selecciona la opción que coincide con la secuencia mostrada.",
+   answers: [
+     { text: "?", correct: false, audio: "op3a.mp3" },
+     { text: "?", correct: false, audio: "op3b.mp3" },
+     { text: "?", correct: true, audio: "op3c.mp3" }
+   ]
+ },
+
+ {
+   pretext: "",
+   image: "p4.jpg",
+   question: "Selecciona la opción que coincide con la secuencia mostrada.",
+   answers: [
+     { text: "?", correct: true, audio: "op4a.mp3" },
+     { text: "?", correct: false, audio: "op4b.mp3" },
+     { text: "?", correct: false, audio: "op4c.mp3" }
+   ]
+ },
+
+ {
+   pretext: "",
+   image: "p5.jpg",
+   question: "Selecciona la opción que coincide con la secuencia mostrada.",
+   answers: [
+     { text: "?", correct: false, audio: "op5a.mp3" },
+     { text: "?", correct: true, audio: "op5b.mp3" },
+     { text: "?", correct: false, audio: "op5c.mp3" }
+   ]
+ }
+];
+
+/* ============================= VARIABLES ============================= */
+let questions = [];
+let currentIndex = 0;
+let correctAnswers = 0;
+let userAnswers = [];
+let shuffledAnswers = [];
+let userName = "";
+
+
+/* ============================= INTRO ============================= */
+function showIntro() {
+ document.getElementById("app").innerHTML = `
+   <div class="intro">
+     <h1 id="title">Simulación de Examen AMG</h1>
+     <h2>Bienvenido</h2>
+     <p style="font-size:1.2rem; color:blue;">Reconocimiento gráfico y auditivo de secuencias armónicas.</p>
+     <button class="btn" onclick="startQuiz()">Iniciar</button>
+   </div>
+ `;
+}
+
+function startQuiz() {
+ userName = ""; // ya no se pide nombre
+
+ questions = baseQuestions.map(q => ({ ...q, answers: [...q.answers] }));
+ questions.sort(() => Math.random() - 0.5);
+ currentIndex = 0;
+ correctAnswers = 0;
+ userAnswers = [];
+ shuffledAnswers = [];
+
+ showQuestion();
+}
+
+
+/* ============================= MOSTRAR PREGUNTA ============================= */
+
+let currentAudio = null;
+let currentBtn = null;
+
+function showQuestion() {
+
+ if (currentAudio) {
+   currentAudio.pause();
+   if (currentBtn) {
+     currentBtn.textContent = "▶";
+     currentBtn.classList.remove("playing");
+   }
+   currentAudio = null;
+   currentBtn = null;
+ }
+
+ const q = questions[currentIndex];
+ let shuffled = shuffledAnswers[currentIndex] ?? [...q.answers].sort(() => Math.random() - 0.5);
+ shuffledAnswers[currentIndex] = shuffled;
+
+ const saved = userAnswers[currentIndex] ?? null;
+
+ /* ==== VIDEO O IMAGEN AUTOMÁTICO ==== */
+ let mediaHTML = "";
+ if (q.video) {
+   mediaHTML = `
+   <div class="quiz-image-box">
+     <iframe class="quiz-video"
+       src="${q.video}"
+       frameborder="0"
+       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+       allowfullscreen></iframe>
+   </div>`;
+ } else {
+   mediaHTML = `
+   <div class="quiz-image-box">
+     <img class="quiz-image" src="${q.image}">
+   </div>`;
+ }
+
+ document.getElementById("app").innerHTML = `
+   <div class="progress">Pregunta ${currentIndex + 1} de ${questions.length}</div>
+   <div class="pretext">${q.pretext}</div>
+
+   ${mediaHTML}
+
+   <div class="question">${q.question}</div>
+
+   <div class="answers">
+     ${shuffled.map((ans, i) => {
+
+       let state = "";
+       let icon = ans.correct ? "✔" : "✖";
+
+       if (saved !== null) {
+         if (saved.index === i) {
+           state = saved.correct ? "correct" : "wrong";
+         }
+         if (!saved.correct && ans.correct) {
+           state = "correct";
+         }
+       }
+
+       return `
+         <div class="option-row">
+           <div class="option-number">Opción ${i + 1}</div>
+
+           <div class="play-wrap">
+             <button class="audio-btn" onclick="playAudio('${ans.audio}', this)">▶</button>
+           </div>
+
+           <button class="answer-btn ${state}"
+             ${saved !== null ? "disabled" : ""}
+             onclick='selectAnswer(${ans.correct}, this, ${i})'>
+             ${ans.text}
+             <span class="icon">${icon}</span>
+           </button>
+         </div>
+       `;
+     }).join("")}
+   </div>
+ `;
+
+ const backButton = document.getElementById("backButton");
+ if (currentIndex > 0) {
+   backButton.style.display = "inline-block";
+   backButton.onclick = () => { currentIndex--; showQuestion(); };
+ } else backButton.style.display = "none";
+
+ const nextButton = document.getElementById("nextButton");
+ nextButton.style.display = "inline-block";
+ nextButton.onclick = () => {
+   currentIndex++;
+   if (currentIndex >= questions.length) { showSummary(); return; }
+   showQuestion();
+ };
+}
+
+
+/* ============================= AUDIO ============================= */
+
+function playAudio(file, btn) {
+
+ if (currentAudio && currentBtn === btn) {
+   currentAudio.pause();
+   btn.textContent = "▶";
+   btn.classList.remove("playing");
+   currentAudio = null;
+   currentBtn = null;
+   return;
+ }
+
+ if (currentAudio) {
+   currentAudio.pause();
+   if (currentBtn) {
+     currentBtn.textContent = "▶";
+     currentBtn.classList.remove("playing");
+   }
+ }
+
+ currentAudio = new Audio(file);
+ currentBtn = btn;
+
+ btn.textContent = "❚❚";
+ btn.classList.add("playing");
+
+ currentAudio.onended = () => {
+   if (currentBtn) {
+     currentBtn.textContent = "▶";
+     currentBtn.classList.remove("playing");
+   }
+   currentAudio = null;
+   currentBtn = null;
+ };
+
+ currentAudio.play();
+}
+
+
+/* ============================= RESPUESTAS ============================= */
+
+function selectAnswer(correct, btn, indexSelected) {
+
+ if (currentAudio) {
+   currentAudio.pause();
+   if (currentBtn) currentBtn.textContent = "▶";
+ }
+
+ document.querySelectorAll(".answer-btn").forEach(b => (b.disabled = true));
+
+ const sound = new Audio(correct ? "correct.mp3" : "wrong.mp3");
+ sound.volume = 0.9;
+ sound.play();
+
+ userAnswers[currentIndex] = { index: indexSelected, correct: correct };
+
+ if (correct) {
+   btn.classList.add("correct");
+   correctAnswers++;
+ } else {
+   btn.classList.add("wrong");
+   const q = questions[currentIndex];
+   const correctIndex = shuffledAnswers[currentIndex].findIndex(a => a.correct);
+   const correctBtn = document.querySelectorAll(".answer-btn")[correctIndex];
+   if (correctBtn) correctBtn.classList.add("correct");
+ }
+
+ setTimeout(() => {
+   currentIndex++;
+   if (currentIndex >= questions.length) { showSummary(); return; }
+   showQuestion();
+ }, 1500);
+}
+
+
+/* ============================= RESUMEN ============================= */
+
+function showSummary() {
+ const percent = Math.round((correctAnswers / questions.length) * 100);
+
+ let frase = "";
+ if (percent === 100) frase = "¡Excelente! Dominas este ejercicio por completo. Para más ejercicios escribe a rdidacticosmusica@gmail.com";
+ else if (percent >= 90) frase = "¡Muy bien hecho! Estás muy cerca de la perfección. Para más ejercicios escribe a rdidacticosmusica@gmail.com";
+ else if (percent >= 70) frase = "Sigue practicando y mejorarás. Para más ejercicios escribe a rdidacticosmusica@gmail.com ";
+ else frase = "Cada intento te hace más fuerte. Para más ejercicios escribe a rdidacticosmusica@gmail.com ";
+
+ document.getElementById("app").innerHTML = `
+   <div class="summary">
+     <h2>¡Has terminado!</h2>
+
+     <p>Respuestas correctas:
+       <strong>${correctAnswers}</strong> /
+       <strong>${questions.length}</strong>
+     </p>
+
+     <p style="font-size:1.4rem; color:#2563eb; font-weight:700;">
+       Calificación: ${percent}%
+     </p>
+
+     <p style="margin-top:14px; font-size:1.1rem; color:#0f172a;">
+       <em>${frase}</em>
+     </p>
+
+     <button class="btn" onclick="restartQuiz()">Reiniciar</button>
+   </div>
+ `;
+}
+
+function restartQuiz() {
+ showIntro();
+}
+
+showIntro();
+</script>
+
+</body>
+</html>
